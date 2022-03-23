@@ -34,6 +34,8 @@ export function activate(context: vscode.ExtensionContext) {
 							console.log('转换',targetStr );
 							editBuilder.replace(selection, targetStr);
 						} catch (error) {
+							console.error(error);
+							
 							vscode.window.showErrorMessage('无效的字符串，转换api type失败');
 						}
 					}
@@ -91,14 +93,22 @@ function genType(rawType: string) {
 }
 
 // const REG_ENG = /[a-zA-Z\s]+/g;
-// const REG_CN = /[\u4e00-\u9fa5\s,.。，]/g;
-function parseLine(lineStr: string): string[] {
-	const result: string[] = [];
+// const REG_CN = /$[\u4e00-\u9fa5]+/;
+function isHeader(line: string) {
+	return /^[\u4e00-\u9fa5]+/.test(line) && line.includes('\t');
+}
+
+function parseLine(lineStr: string): any[] {
+	const result: any[] = [];
 	const matches = lineStr.split('\t');
 
 	matches.forEach(rs => {
 		if (!rs) { return; };
 		rs = rs.trim();
+		if (['是', '否'].includes(rs)) { // required
+			return result.push(rs === '是');
+		}
+
 		if (rs.includes('Array of')) {rs = rs.split(' ').pop() + '[]';}
 		if (rs.includes('.N')) {rs = rs.replace('.N', '');}
 		if (rs.includes('Timestamp ISO8601')) {rs = 'String';} 
@@ -119,20 +129,40 @@ function parseLine(lineStr: string): string[] {
 }
 
 function raw2ApiType(rawStr: string, typeName = 'SomeType') {
-	const lines = rawStr.split('\n');
-	let result = `type ${typeName} = {\n`;
-	let extraRs = '';
-	lines.forEach(line => {
-		if (!line) {return;}
+	const lines = rawStr.trim().split('\n');
+
+	const configs: any[] = [];
+	const headers = genHeaders(lines[0]);
+	lines.forEach((line) => {
+		if (!line) {return;} // 移除空行
+
+		// 移除表头
+		if (isHeader(line)) {return;}
+
+		if (!/\t/.test(line)) {
+			if (line.includes('此字段可能返回 null')) {
+				configs[configs.length - 1].required = false;
+			}
+			return;
+		};
 		
 		const columns = parseLine(line);
-		let field, required, type, desc;
-		if (columns.length >= 4) {
-			[field, required, type, desc] = columns;
-		} else {
-			[field, type, desc, required = true] = columns;
+		const rs: Record<string, any> = {};
+		columns.forEach((v, i) => {
+			rs[headers[i]] = v;
+		});
+		if (rs.required === undefined) {
+			rs.required = true;
 		}
 
+		configs.push(rs);
+	});
+
+	// 组装
+	let result = `type ${typeName} = {\n`;
+	let extraRs = '';
+	configs.forEach(config => {
+		const { desc, field, required, type } = config;
 		const [_type, extra] = genType(type);
 		console.log(_type, extra);
 		
@@ -143,4 +173,35 @@ function raw2ApiType(rawStr: string, typeName = 'SomeType') {
 	result += `}\n${extraRs}`;
 
 	return result;
+}
+
+
+function str2Field(str: string): string {
+	if (str.includes('名称')) {return 'field';}
+	if (str.includes('必选')) {return 'required';}
+	if (str.includes('类型')) {return 'type';}
+	if (str.includes('描述')) {return 'desc';}
+	return '';
+}
+function genHeaders(headLine: string): string[] {
+	const columns = headLine.split('\t');
+
+	if (isHeader(headLine)) {
+		return columns.map(item => str2Field(item));
+	}
+
+	if (columns.length >= 4) {
+		const [, a, b,] = columns;
+		if (['是', '否'].includes(a.trim())) {
+            return ['field', 'required', 'type', 'desc'];
+        }
+        if (['是', '否'].includes(b.trim())) {
+            return ['field', 'type', 'required', 'desc'];
+        }
+	} else {
+		return ['field', 'type', 'desc'];
+	}
+
+	return [];
+
 }

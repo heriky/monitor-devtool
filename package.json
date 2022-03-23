@@ -3,6 +3,7 @@
   "displayName": "Monitor Devtools",
   "description": "monitor devtools",
   "version": "0.0.1",
+  "publisher": "hankang",
   "engines": {
     "vscode": "^1.65.0"
   },
