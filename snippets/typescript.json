@@ -1,0 +1,26 @@
+{
+    "routerLink": {
+        "prefix": "link",
+        "body": [
+            "<${5:router-link} to={ name: '${1:$TM_FILENAME}', params: { id: ${2:id} } } ${3| ,target='_blank'|}>${4:$TM_SELECTED_TEXT}</${5:router-link}>"
+        ],
+        "description": "router-link 跳转"
+    },
+    "react component": {
+        "prefix": "rc",
+        "body": [
+            "import React from 'react';",
+            "import { useLocalObservable } from 'mobx';",
+            "import { observer } from 'mobx-react-lite';",
+            "",
+            "type Props = {};",
+            "const $TM_FILENAME = observer((props: Props) => {",
+            "   const state = useLocalObservable(() => ({}));",
+            "",
+            "   return <></>;",
+            "})"
+
+        ],
+        "description": "生成react组件模板代码"
+    }
+}
